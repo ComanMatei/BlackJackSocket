@@ -1,180 +1,193 @@
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 
 public class Client {
 
-    private static String serializeCards(ArrayList<String> cards) {
-        StringBuilder serializedCards = new StringBuilder();
-        for (String card : cards) {
-            serializedCards.append(card).append(",");
+    private static ArrayList<String> detransformeCards(String transformedCards) {
+        ArrayList<String> cards = new ArrayList<>();
+        String[] cardStrings = transformedCards.split(",");
+        for (String card : cardStrings) {
+            cards.add(card.trim());
         }
-        if (serializedCards.length() > 0) {
-            serializedCards.deleteCharAt(serializedCards.length() - 1);
-        }
-        return serializedCards.toString();
+        return cards;
     }
-
 
     public static void main(String[] args) {
 
-        try{
+        try {
 
-            System.out.println("Bine ai venit la jocul de BlackJack!");
+            System.out.println("Bine ai venit la jocul de Blackjack!");
 
-            // Create playing deck
-            Deck playingDeck = new Deck();
-            playingDeck.createFullDeck();
-            playingDeck.shuffle();
-
-            // Create a deck for the player
-            Deck playerDeck = new Deck();
-            Deck dealerDeck = new Deck();
-
-            double playerMoney = 100.00;
-
-
+            // Inițializare conexiune cu dealerul
             Socket s = new Socket("localhost", 9999);
+
             BufferedReader userIn = new BufferedReader(new InputStreamReader(System.in));
+            BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));
+
             PrintWriter out = new PrintWriter(s.getOutputStream(), true);
-            OutputStreamWriter os = new OutputStreamWriter(s.getOutputStream());
 
-            while(playerMoney > 0) {
-                // Play On!
-                //Take the player bet
-                System.out.println("Ai " + playerMoney + "RON, cat de mult vrei sa pariezi?");
-                double playerBet = Double.parseDouble(userIn.readLine());
+            try {
 
-                out.println(playerBet);
+                while (true) {
 
-                if (playerBet > playerMoney) {
-                    System.out.println("Nu poti paria mai mult decat ai!");
-                    break;
-                }
+                    boolean continueGame = true;
+                    while (continueGame) {
 
-                boolean endRound = false;
+                        double playerMoney = Double.parseDouble(br.readLine());
+                        System.out.println("Ai " + playerMoney + "RON");
+                        // Mesaj "Cat vrei sa pariezi?"
+                        String message = br.readLine();
+                        System.out.println(message);
+                        // Valorea pariata
+                        double playerBet = Double.parseDouble(userIn.readLine());
+                        out.println(playerBet);
+                        out.flush();
 
-                // Start Dealing
-                // Player gets two cards
-                ArrayList<String> cardsPlayer = new ArrayList<>();
-                ArrayList<String> cardsDealer = new ArrayList<>();
+                        while (playerBet > playerMoney) {
+                            // "Nu poti paria mai mult decat ai! Incearca din nou!";
+                            message = br.readLine();
+                            System.out.println(message);
 
-                playerDeck.draw(playingDeck);
-                playerDeck.draw(playingDeck);
-                cardsPlayer.add(String.valueOf(playerDeck.getCard(0)));
-                cardsPlayer.add(String.valueOf(playerDeck.getCard(1)));
+                            playerBet = Double.parseDouble(userIn.readLine());
+                            out.println(playerBet);
+                            out.flush();
+                            System.out.println("Clientul pariaza : " + playerBet + " RON");
+                        }
 
-                String serializedCardsPlayer = serializeCards(cardsPlayer);
-                out.println(serializedCardsPlayer);
+                        String transformedCardsPlayer = br.readLine();
+                        ArrayList<String> receivedCardsPlayer = detransformeCards(transformedCardsPlayer);
+                        System.out.println("Cartile clientului : [" + receivedCardsPlayer.get(0) + "], [" + receivedCardsPlayer.get(1) + "]");
 
-                // Deealer gest two cards
-                dealerDeck.draw(playingDeck);
-                dealerDeck.draw(playingDeck);
-                cardsDealer.add(String.valueOf(dealerDeck.getCard(0)));
-                cardsDealer.add(String.valueOf(dealerDeck.getCard(1)));
+                        String transformedCardsDealer = br.readLine();
+                        ArrayList<String> receivedCardsDealer = detransformeCards(transformedCardsDealer);
+                        System.out.println("Cartile dealerului : [" + receivedCardsDealer.get(0) + "], [Ascunsa]");
 
-                String serializedCardsDealer = serializeCards(cardsDealer);
-                out.println(serializedCardsDealer);
+                        int enterDealerCardsValue = Integer.parseInt(br.readLine().trim());
 
-                int dealerCardsValue = dealerDeck.cardsValue();
-                out.println(dealerCardsValue);
-                os.flush();
+                        int enterPlayerCardsValue = Integer.parseInt(br.readLine().trim());
+                        System.out.println("Valoarea cartilor clientului : " + enterPlayerCardsValue);
+                        System.out.println();
 
-                while (true){
-                    System.out.println("Mana ta :" + cardsPlayer);
-                    System.out.println("Valoarea cartilor este : " + playerDeck.cardsValue());
+                        // Mesaj primit "1 sau 2?"
+                        message = br.readLine();
+                        System.out.println(message);
 
-                    int playerCardsValue = playerDeck.cardsValue();
-                    out.println(playerCardsValue);
-                    os.flush();
-
-                    // Display dealer hand
-                    System.out.println("Mana dealerului : [" + dealerDeck.getCard(0).toString() + "], [Ascunsa]");
-
-                    // What does the player want to do
-                    System.out.println("Ce vrei sa faci (1)Trage sau (2)Stai?");
-                    int response = Integer.parseInt(userIn.readLine());
-                    out.println(response);
-                    os.flush();
-
-                    // They hit
-                    if(response == 1){
-                        playerDeck.draw(playingDeck);
-                        System.out.println("Ai tras : [" + playerDeck.getCard(playerDeck.deckSize() - 1).toString() + "]");
-
-                        cardsPlayer.add(String.valueOf(playerDeck.getCard(playerDeck.deckSize() - 1)));
-                        serializedCardsPlayer = serializeCards(cardsPlayer);
-                        out.println(serializedCardsPlayer);
-
-                        // Bust if > 21
-                        if(playerDeck.cardsValue() > 21){
-                            System.out.println("Ai pierdut! Valoarea cartilor este : " + playerDeck.cardsValue());
-                            int endPlayerCardsValue = playerDeck.cardsValue();
-                            out.println(endPlayerCardsValue);
-                            os.flush();
-
-                            playerMoney -= playerBet;
-                            endRound = true;
+                        if (playerBet == 0) {
                             break;
+                        } else {
+                            // Am trimis raspunsul 1 sau 2
+                            int response = Integer.parseInt(userIn.readLine());
+                            out.println(response);
+                            out.flush();
+
+                            if (response == 2) {
+                                System.out.println("Cartea ascunsa a dealerului : [" + receivedCardsDealer.get(1) + "]");
+                            }
+
+                            if (response == 2 && enterPlayerCardsValue == 21) {
+                                System.out.println("Cartile dealerului : " + receivedCardsDealer);
+                                System.out.println("Valoarea cartilor dealerului : " + enterDealerCardsValue);
+                                System.out.println("FELICITARI AI FACUT BLACKJACK!");
+                                System.out.println();
+                                break;
+                            }
+
+                            while (enterDealerCardsValue < 17 && response == 2) {
+                                transformedCardsDealer = br.readLine();
+                                receivedCardsDealer = detransformeCards(transformedCardsDealer);
+
+                                int dealerCardsValue = Integer.parseInt(br.readLine().trim());
+                                enterDealerCardsValue = dealerCardsValue;
+                                System.out.println("Dealerul a tras : [" + receivedCardsDealer.get(receivedCardsDealer.size() - 1) + "]");
+                            }
+
+                            if (response == 2) {
+                                if (enterDealerCardsValue >= 17) {
+                                    System.out.println("Cartile dealerului : " + receivedCardsDealer);
+                                    System.out.println("Valoarea cartilor dealerului : " + enterDealerCardsValue);
+                                }
+
+                                if (enterPlayerCardsValue == enterDealerCardsValue) {
+                                    System.out.println("REMIZA1!");
+                                    System.out.println();
+                                } else if (enterPlayerCardsValue <= 21 && (enterPlayerCardsValue > enterDealerCardsValue || enterDealerCardsValue >= 22)) {
+                                    System.out.println("CLIENTUL A CASTIGAT!");
+                                    System.out.println();
+                                } else {
+                                    System.out.println("CLIENTUL A PIERDUT!");
+                                    System.out.println();
+                                }
+                            }
+                            while (response != 2) {
+
+                                transformedCardsPlayer = br.readLine();
+                                receivedCardsPlayer = detransformeCards(transformedCardsPlayer);
+                                System.out.println("Dealerul imi da cartea : [" + receivedCardsPlayer.get(receivedCardsPlayer.size() - 1) + "]");
+                                System.out.println("Cartile clientului : " + receivedCardsPlayer);
+
+                                int playerCardsValue = Integer.parseInt(br.readLine().trim());
+                                enterPlayerCardsValue = playerCardsValue;
+                                System.out.println("Valoarea cartilor clientului : " + enterPlayerCardsValue);
+
+                                if (enterPlayerCardsValue >= 22) {
+                                    System.out.println("Cartea ascunsa a dealerului : [" + receivedCardsDealer.get(1) + "]");
+                                    System.out.println("Cartile dealerului : " + receivedCardsDealer);
+                                    System.out.println("Valoarea cartilor dealerului : " + enterDealerCardsValue);
+                                    System.out.println("CLIENTUL A PIERDUT!");
+                                    System.out.println();
+                                    break;
+                                }
+                                // Mesaj primit "1 sau 2?"
+                                message = br.readLine();
+                                System.out.println(message);
+
+                                response = Integer.parseInt(userIn.readLine());
+                                out.println(response);
+                                out.flush();
+                                
+                                if (response == 2) {
+
+                                    System.out.println("Cartea ascunsa a dealerului : [" + receivedCardsDealer.get(1) + "]");
+
+                                    while (enterDealerCardsValue < 17) {
+                                        transformedCardsDealer = br.readLine();
+                                        receivedCardsDealer = detransformeCards(transformedCardsDealer);
+
+                                        int dealerCardsValue = Integer.parseInt(br.readLine().trim());
+                                        enterDealerCardsValue = dealerCardsValue;
+                                        System.out.println("Dealerul a tras : [" + receivedCardsDealer.get(receivedCardsDealer.size() - 1) + "]");
+                                    }
+
+                                    if (enterDealerCardsValue >= 17)
+                                        System.out.println("Cartile dealerului : " + receivedCardsDealer);
+                                    System.out.println("Valoarea cartilor dealerului : " + enterDealerCardsValue);
+
+                                    if (enterPlayerCardsValue == enterDealerCardsValue) {
+                                        System.out.println("REMIZA!");
+                                        System.out.println();
+                                    } else if (enterPlayerCardsValue <= 21 && (enterPlayerCardsValue > enterDealerCardsValue || enterDealerCardsValue >= 22)) {
+                                        System.out.println("CLIENTUL A CASTIGAT!");
+                                        System.out.println();
+                                    } else {
+                                        System.out.println("CLIENTUL A PIERDUT!");
+                                        System.out.println();
+                                    }
+                                }
+                            }
                         }
                     }
-
-                    if (response == 2)
-                        break;
                 }
-
-                // Reveal Dealer Cards
-                // Dealer draws at 16, stand at 17
-                System.out.println("Cartea ascunsa a dealerului : [" + dealerDeck.getCard(1) + "]");
-                while (dealerDeck.cardsValue() < 17 && endRound == false){
-                    dealerDeck.draw(playingDeck);
-                    System.out.println("Dealerul trage : [" + dealerDeck.getCard(dealerDeck.deckSize() - 1).toString() + "]");
-
-                    cardsDealer.add(String.valueOf(dealerDeck.getCard(dealerDeck.deckSize() - 1)));
-                    serializedCardsDealer = serializeCards(cardsDealer);
-                    out.println(serializedCardsDealer);
-
-                    int enterDealerCardsValue = dealerDeck.cardsValue();
-                    out.println(enterDealerCardsValue);
-                    os.flush();
-                }
-                System.out.println("Cartile dealerului : " + cardsDealer);
-                // Display total value for Dealer
-                System.out.println("Valoarea cartilor dealerului: " + dealerDeck.cardsValue());
-
-                // Determine if dealer busted
-                if ((dealerDeck.cardsValue() > 21) && endRound == false){
-                    System.out.println("AI CASTIGAT!");
-                    playerMoney += playerBet;
-                    endRound = true;
-                }
-
-                if ((dealerDeck.cardsValue() > playerDeck.cardsValue()) && endRound == false){
-                    System.out.println("AI PIERDUT!");
-                    playerMoney -= playerBet;
-                    endRound = true;
-                }
-
-                // Determine if push
-                if ((playerDeck.cardsValue() == dealerDeck.cardsValue()) && endRound == false){
-                    System.out.println("REMIZA!");
-                    endRound = true;
-                }
-
-                if(playerDeck.cardsValue() > dealerDeck.cardsValue() && endRound == false){
-                    System.out.println("AI CASTIGAT!");
-                    playerMoney += playerBet;
-                }
-
-                playerDeck.moveAllToDeck(playingDeck);
-                dealerDeck.moveAllToDeck(playingDeck);
-                System.out.println("Sfarsitul rundei!");
-
+            } catch (Exception e) {
+                System.out.println("TI-AI PIERDUT TOTI BANII!");
             }
-            System.out.println("Ti-ai pierdut toti banii!");
         }
-        catch (Exception e){
-            e.printStackTrace();
-        }
+        catch (SocketException e) {
+                System.out.println("AI RULAT CLIENTUL INAINTE SA RULEZI SERVERUL! " + e.getMessage());
+            }
+        catch (IOException e) {
+                System.out.println("A apărut o eroare de I/O: " + e.getMessage());
+            }
     }
 }

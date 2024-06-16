@@ -50,8 +50,6 @@ public class Deck {
         return cardListOutput.toString();
     }
 
-
-    // Draw from the Jack
     public void draw(Deck comingFrom) {
         Card drawnCard = comingFrom.getCard(0);
         this.cards.add(drawnCard);
@@ -65,7 +63,6 @@ public class Deck {
     public void moveAllToDeck(Deck moveTo) {
         int thisDeckSize = this.cards.size();
 
-        // Transferăm cărțile în pachetul moveTo
         for (int i = 0; i < thisDeckSize; i++) {
             Card cardToMove = this.getCard(0);
             moveTo.addCard(cardToMove);
